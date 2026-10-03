@@ -82,7 +82,7 @@ import {
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('drone')
-const columns = ["任务编号", "飞行区域", "飞行路线", "飞手姓名", "起飞时间", "降落时间", "发现异常数", "任务状态"]
+const columns = ["任务编号", "飞行区域", "飞行路线", "飞手姓名", "起飞时间", "降落时间", "发现异常数", "任务状态", "联动火情"]
 const actions = ["开始飞行", "确认完成", "中止任务"]
 const statuses = ["待执行", "飞行中", "已完成", "因故中止"]
 const stats = [{"label": "今日飞行任务", "value": 0}, {"label": "已完成任务", "value": 0}, {"label": "发现异常数", "value": 0}]

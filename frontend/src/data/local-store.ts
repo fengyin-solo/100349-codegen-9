@@ -2,7 +2,8 @@ import { SEED_ROWS } from './seed'
 import type { EntryRow } from './types'
 
 // 本地持久化：数据放在 localStorage 里，刷新、关掉再打开都还在。
-const STORAGE_KEY = 'forest-fire-patrol:entries'
+// 换数据结构时抬一档版本，旧缓存自动回到新版示例数据。
+const STORAGE_KEY = 'forest-fire-patrol:entries:v2'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -29,6 +30,13 @@ function readStorage(): Record<string, EntryRow[]> {
 
 let cache: Record<string, EntryRow[]> | null = null
 
+// 另一个浏览器标签页落库后，本标签页丢弃内存缓存，保证并发推进读到的是最新版本号。
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('storage', (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY) cache = null
+  })
+}
+
 export function allRows(): Record<string, EntryRow[]> {
   if (cache === null) {
     cache = readStorage()
@@ -46,6 +54,12 @@ export function saveRows(key: string, rows: EntryRow[]): void {
   if (typeof window !== 'undefined' && window.localStorage) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   }
+}
+
+/** 新增联动任务时取该模块下一个可用编号。 */
+export function nextId(key: string): number {
+  const rows = listRows(key)
+  return rows.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1
 }
 
 export function resetRows(key: string): EntryRow[] {

@@ -5,7 +5,9 @@ export type EntryRow = {
   status: string
   pending: boolean
   abnormal: boolean
-  [field: string]: string | number | boolean
+  /** 乐观锁版本号：火情报告等需要并发控制的模块使用，老数据缺省按 0 处理。 */
+  version?: number
+  [field: string]: string | number | boolean | undefined
 }
 
 export type ModuleMeta = {

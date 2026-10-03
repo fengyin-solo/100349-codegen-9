@@ -6,7 +6,7 @@
         <p class="page-desc">维护火情报告，围绕报告编号、起火地点、起火时间、火势等级做登记、筛选与状态流转。</p>
       </div>
       <div class="page-actions">
-        <button class="btn primary" type="button" @click="openCreate">登记火情报告</button>
+        <RouterLink class="btn primary" to="/fireops">进入处置作战视图</RouterLink>
         <button class="btn" type="button" @click="exportRows">导出火情报告清单</button>
       </div>
     </header>
@@ -46,15 +46,18 @@
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
-            <button
-              v-for="action in actions"
-              :key="action"
-              class="link"
-              type="button"
-              @click="runAction(action, row)"
-            >
-              {{ action }}
-            </button>
+            <template v-if="actionsFor(String(row.status)).length">
+              <button
+                v-for="action in actionsFor(String(row.status))"
+                :key="action"
+                class="link"
+                type="button"
+                @click="runAction(action, row)"
+              >
+                {{ action }}
+              </button>
+            </template>
+            <span v-else class="terminal-text">终态，不可再推进</span>
           </td>
         </tr>
         <tr v-if="!rows.length">
@@ -64,7 +67,7 @@
     </table>
 
     <footer class="page-foot">
-      <span>共 {{ total }} 条火情报告记录</span>
+      <span>共 {{ total }} 条火情报告记录；状态只能从待核实逐段推进，误报与扑灭互斥不可倒回</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
@@ -79,25 +82,35 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { availableActions, isTerminal, type FireAction } from '@/data/fire-ops'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('firereport')
 const columns = ["报告编号", "起火地点", "起火时间", "火势等级", "过火面积", "扑救情况", "报告人", "报告状态"]
-const actions = ["核实火情", "出动扑救", "确认误报"]
-const statuses = ["待核实", "已确认", "已出警", "已扑灭", "误报"]
-const stats = [{"label": "今日报告数", "value": 0}, {"label": "已确认火情", "value": 0}, {"label": "扑救中火情", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+
+const statuses = ["待核实", "已确认", "已出警", "已扑灭", "误报"]
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
 )
+const stats = computed(() => [
+  { label: "今日报告数", value: rows.value.length },
+  { label: "已确认火情", value: rows.value.filter((r) => ["已确认", "已出警", "已扑灭"].includes(String(r.status))).length },
+  { label: "扑救中火情", value: rows.value.filter((r) => String(r.status) === "已出警").length },
+  { label: "终态闭环", value: rows.value.filter((r) => isTerminal(String(r.status))).length },
+])
+
+function actionsFor(status: string): FireAction[] {
+  return availableActions(status)
+}
 
 function resetFilters() {
   filters.value = {}
@@ -108,10 +121,6 @@ function exportRows() {
   downloadEntries(meta.key)
 }
 
-function openCreate() {
-  errorMessage.value = '火情报告登记入口尚未接入审批流'
-}
-
 function runAction(action: string, row: EntryRow) {
   errorMessage.value = ''
   const result = applyAction(meta.key, Number(row.id), action)
@@ -120,10 +129,12 @@ function runAction(action: string, row: EntryRow) {
     return
   }
   reload()
+  if (action === '出动扑救') {
+    errorMessage.value = `${result.message}；扑火队伍待命台账与无人机巡查清单已各新增一份联动任务`
+  }
 }
 
 function reload() {
-  errorMessage.value = ''
   try {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
@@ -135,3 +146,7 @@ function reload() {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.terminal-text { color: var(--muted); font-size: 12px; }
+</style>
