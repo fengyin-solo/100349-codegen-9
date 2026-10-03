@@ -67,5 +67,9 @@ npm run build
   `frontend/src/api/local-service.ts`。
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
   `frontend/src/data/seed.ts`。
-- 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
+- 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。火情报告的处置链路
+  （状态机、版本闸、出警联动、处置时间轴）单独收敛在 `frontend/src/api/fire-ops.ts`，
+  火情报告列表页与处置作战视图（`/firereport/ops`）两处入口共用：同一条报告被并发推进时
+  只有先落库的路径生效；出警落库后扑火队伍待命台账与无人机巡查清单各增一份任务；
+  误报与扑灭为互斥终态，先落库的终态优先。
 - 想回到初始数据：清掉浏览器里 `forest-fire-patrol:entries` 这一项，或调用 `resetModule(模块)`。

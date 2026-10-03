@@ -6,6 +6,7 @@
         <p class="page-desc">维护火情报告，围绕报告编号、起火地点、起火时间、火势等级做登记、筛选与状态流转。</p>
       </div>
       <div class="page-actions">
+        <RouterLink class="btn" to="/firereport/ops">处置作战视图</RouterLink>
         <button class="btn primary" type="button" @click="openCreate">登记火情报告</button>
         <button class="btn" type="button" @click="exportRows">导出火情报告清单</button>
       </div>
@@ -47,7 +48,7 @@
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
-              v-for="action in actions"
+              v-for="action in fireReportActions(String(row.status))"
               :key="action"
               class="link"
               type="button"
@@ -55,6 +56,7 @@
             >
               {{ action }}
             </button>
+            <span v-if="!fireReportActions(String(row.status)).length" class="terminal-hint">已终态</span>
           </td>
         </tr>
         <tr v-if="!rows.length">
@@ -65,6 +67,7 @@
 
     <footer class="page-foot">
       <span>共 {{ total }} 条火情报告记录</span>
+      <span v-if="notice">{{ notice }}</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
@@ -73,23 +76,21 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import {
-  downloadEntries,
-  listEntries,
-  moduleMeta,
-  runAction as applyAction,
-} from '@/api/local-service'
+import { advanceFireReport, fireReportActions, listFireReports } from '@/api/fire-ops'
+import { downloadEntries, moduleMeta } from '@/api/local-service'
 import type { EntryRow } from '@/data/types'
+import { useSessionStore } from '@/stores/session'
 
 const meta = moduleMeta('firereport')
+const store = useSessionStore()
 const columns = ["报告编号", "起火地点", "起火时间", "火势等级", "过火面积", "扑救情况", "报告人", "报告状态"]
-const actions = ["核实火情", "出动扑救", "确认误报"]
 const statuses = ["待核实", "已确认", "已出警", "已扑灭", "误报"]
 const stats = [{"label": "今日报告数", "value": 0}, {"label": "已确认火情", "value": 0}, {"label": "扑救中火情", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
+const notice = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
 const statusSummary = computed(() =>
@@ -112,20 +113,22 @@ function openCreate() {
   errorMessage.value = '火情报告登记入口尚未接入审批流'
 }
 
+// 与作战视图共用同一条推进链路：带版本号落库，并发时只有先落库的路径生效。
 function runAction(action: string, row: EntryRow) {
-  errorMessage.value = ''
-  const result = applyAction(meta.key, Number(row.id), action)
+  const result = advanceFireReport(Number(row.id), action, Number(row.version ?? 1), store.operator)
+  reload()
   if (!result.ok) {
     errorMessage.value = result.message
     return
   }
-  reload()
+  notice.value = result.message
 }
 
 function reload() {
   errorMessage.value = ''
+  notice.value = ''
   try {
-    const payload = listEntries(meta.key, filters.value)
+    const payload = listFireReports(filters.value)
     rows.value = payload.items
     total.value = payload.total
   } catch (error) {
